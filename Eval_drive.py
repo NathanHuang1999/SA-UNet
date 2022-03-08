@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 from scipy.misc.pilutil import *
-import matplotlib.pyplot as plt
+from PIL import Image
 from SA_UNet import *
 import time
 
@@ -26,11 +26,11 @@ for image in test_image_files:
 
     # padding
     old_size = im.shape[:2]  # old_size is in (height, width) format
-    delta_w = desired_size - old_size[1]
-    delta_h = desired_size - old_size[0]
+    delta_w = desired_size - old_size[1]  # 592-565=27
+    delta_h = desired_size - old_size[0]  # 592-584=8
 
-    top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-    left, right = delta_w // 2, delta_w - (delta_w // 2)
+    top, bottom = delta_h // 2, delta_h - (delta_h // 2)  # top=4, bottom=4
+    left, right = delta_w // 2, delta_w - (delta_w // 2)  # left=13, right=14
 
     color = [0, 0, 0]
     color2 = [0]
@@ -65,6 +65,8 @@ model.load_weights(weight)
 # Part 3:
 # RUN!
 
+threshold_of_prediction = 0.1  # use this value to make bi-classification
+
 # model.evaluate()
 prediction_base = "./DRIVE/prediction/"
 if not os.path.exists(prediction_base):
@@ -75,9 +77,19 @@ if not os.path.exists(prediction_loc):
     os.mkdir(prediction_loc)
 
 pred = model.predict(x_test, batch_size=3)  # np.array, shape:(20, 592, 592, 1)
+# the following code should be modified to output images of the original size
 for result_idx in range(20):
-    plt.imshow(pred[result_idx].squeeze(2), cmap="gray")
-    plt.savefig(prediction_loc + "{idx}_pred.png".format(idx=result_idx+1))
+
+    # produce full size images
+    # remove the padding pixels around the image
+    result_pred = pred[result_idx][4:desired_size - 4, 13:desired_size - 14].ravel()  # shape:(584*565)
+
+    # create a array for containing the image
+    result_img = np.zeros((584*565, 3), np.uint8)
+    result_img[result_pred>threshold_of_prediction] = [255, 255, 255]
+    result_img.shape = (584, 565, 3)
+
+    Image.fromarray(result_img).save(prediction_loc + "{idx}_pred_{th}.png".format(idx=result_idx+1, th=threshold_of_prediction))
 
 print("Prediction is done!")
 
