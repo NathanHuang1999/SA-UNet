@@ -6,22 +6,34 @@ from keras.callbacks import TensorBoard, ModelCheckpoint
 np.random.seed(42)
 import scipy.misc as mc
 import matplotlib.pyplot as plt
+
 data_location = ''
-training_images_loc = data_location + 'CHASE/train/imageS/'
-training_label_loc = data_location + 'CHASE/train/labelS/'
-validate_images_loc = data_location + 'CHASE/validate/images/'
-validate_label_loc = data_location + 'CHASE/validate/labels/'
+
+# use original dataset
+# training_images_loc = data_location + 'CHASE/train/imageS/'
+# training_label_loc = data_location + 'CHASE/train/labelS/'
+# validate_images_loc = data_location + 'CHASE/validate/images/'
+# validate_label_loc = data_location + 'CHASE/validate/labels/'
+
+# use my augmentation dataset
+training_images_loc = data_location + 'CHASE/CHASE/na_train/images/'
+training_label_loc = data_location + 'CHASE/CHASE/na_train/labels/'
+validate_images_loc = data_location + 'CHASE/CHASE/na_validate/images/'
+validate_label_loc = data_location + 'CHASE/CHASE/na_validate/labels/'
+
 train_files = os.listdir(training_images_loc)
 train_data = []
 train_label = []
 validate_files = os.listdir(validate_images_loc)
 validate_data = []
 validate_label = []
-desired_size=1008
+
+desired_size = 1008
 
 for i in train_files:
     im = mc.imread(training_images_loc + i)
-    label = mc.imread(training_label_loc + i.split('_')[0]+"_"+i.split('_')[1].split(".")[0] +"_1stHO.png" ,mode="L")
+    # label = mc.imread(training_label_loc + i.split('_')[0]+"_"+i.split('_')[1].split(".")[0] +"_1stHO.png" ,mode="L")  # use original dataset
+    label = mc.imread(training_label_loc + i, mode="L")  # use my augmentation dataset
     old_size = im.shape[:2]  # old_size is in (height, width) format
     delta_w = desired_size - old_size[1]
     delta_h = desired_size - old_size[0]
@@ -45,10 +57,11 @@ for i in train_files:
     train_label.append(temp)
 
 
-
+print(f"Processing {len(validate_files)} validate samples...")
 for i in validate_files:
     im = mc.imread(validate_images_loc + i)
-    label = mc.imread(validate_label_loc +i.split('_')[0]+'_'+ i.split('_')[1].split(".")[0] +"_1stHO.png" ,mode="L")
+    # label = mc.imread(validate_label_loc +i.split('_')[0]+'_'+ i.split('_')[1].split(".")[0] +"_1stHO.png" ,mode="L")  # use original dataset
+    label = mc.imread(validate_label_loc + i, mode="L")  # use my augmentation dataset
     old_size = im.shape[:2]  # old_size is in (height, width) format
     delta_w = desired_size - old_size[1]
     delta_h = desired_size - old_size[0]
@@ -70,13 +83,12 @@ for i in validate_files:
                       (desired_size, desired_size))
     _, temp = cv2.threshold(temp, 127, 255, cv2.THRESH_BINARY)
     validate_label.append(temp)
-train_data = np.array(train_data)
 
+train_data = np.array(train_data)
 train_label = np.array(train_label)
+
 validate_data = np.array(validate_data)
 validate_label = np.array(validate_label)
-
-
 
 
 x_train = train_data.astype('float32') / 255.
@@ -93,32 +105,32 @@ y_validate = np.reshape(y_validate, (len(y_validate), desired_size, desired_size
 TensorBoard(log_dir='./autoencoder', histogram_freq=0,
             write_graph=True, write_images=True)
 
-from  SA_UNet import *
+from SA_UNet import *
 model=SA_UNet(input_size=(desired_size,desired_size,3),start_neurons=16,lr=1e-3,keep_prob=0.87,block_size=7)
-weight="Model/CHASE/SA_UNet.h5"
-
+weight=""
 restore=False
 
 if restore and os.path.isfile(weight):
+    print(f"Loading weights from {weight}...")
     model.load_weights(weight)
 
-model_checkpoint = ModelCheckpoint(weight, monitor='val_accuracy', verbose=1, save_best_only=False)
+new_path = "Model/CHASE/SA_UNet_220404.h5"
+model_checkpoint = ModelCheckpoint(new_path, monitor='val_accuracy', verbose=1, save_best_only=False)
 
 # plot_model(model, to_file='unet_resnet.png', show_shapes=False, show_layer_names=)
 
 history=model.fit(x_train, y_train,
-                epochs=100, #first  100 with lr=1e-3,,and last 50 with lr=1e-4
-                batch_size=2,
+                epochs=100, #first 100 with lr=1e-3,,and last 50 with lr=1e-4
+                batch_size=3,
                 # validation_split=0.1,
                 validation_data=(x_validate, y_validate),
                 shuffle=True,
                 callbacks= [TensorBoard(log_dir='./autoencoder'), model_checkpoint])
 
-
 print(history.history.keys())
 
 # summarize history for accuracy
-plt.plot(history.history['acc'])
+plt.plot(history.history['accuracy'])
 plt.plot(history.history['val_accuracy'])
 plt.title('SA-UNet Accuracy')
 plt.ylabel('accuracy')

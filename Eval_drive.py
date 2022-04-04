@@ -5,6 +5,7 @@ from scipy.misc.pilutil import *
 from PIL import Image
 from SA_UNet import *
 import time
+import skimage.io as io
 
 # Part 1:
 # read test images and labels, then preprocess them
@@ -22,7 +23,7 @@ desired_size = 592
 for image in test_image_files:
 
     im = imread(testing_images_loc + image)
-    label = imread(testing_labels_loc + image.split('_')[0] + '_manual1.png', mode="L")
+    label = imread(testing_labels_loc + image.split('_')[0] + '_manual1.png', mode="L")  # for normal pics
 
     # padding
     old_size = im.shape[:2]  # old_size is in (height, width) format
@@ -58,14 +59,14 @@ y_test = np.reshape(y_test, (len(y_test), desired_size, desired_size, 1))  # ada
 # load model and parameters
 
 model=SA_UNet(input_size=(desired_size,desired_size,3),start_neurons=16,lr=1e-3,keep_prob=0.82,block_size=7)
-weight="Model/DRIVE/SA_UNet.h5"
+weight="Model/DRIVE/SA_UNet_220331.h5"
 model.load_weights(weight)
 
 
 # Part 3:
 # RUN!
 
-threshold_of_prediction = 0.1  # use this value to make bi-classification
+threshold_of_prediction = 0.5  # use this value to make bi-classification
 
 # model.evaluate()
 prediction_base = "./DRIVE/prediction/"
@@ -82,11 +83,15 @@ for result_idx in range(20):
 
     # produce full size images
     # remove the padding pixels around the image
-    result_pred = pred[result_idx][4:desired_size - 4, 13:desired_size - 14].ravel()  # shape:(584*565)
+    result_pred = pred[result_idx][4:desired_size - 4, 13:desired_size - 14]  # shape:(584,565)
 
+    # save probability pictures
+    io.imsave(prediction_loc + "prob_{idx}.png".format(idx=result_idx+1), result_pred)
+
+    # save binary pictures
     # create a array for containing the image
     result_img = np.zeros((584*565, 3), np.uint8)
-    result_img[result_pred>threshold_of_prediction] = [255, 255, 255]
+    result_img[result_pred.ravel()>threshold_of_prediction] = [255, 255, 255]
     result_img.shape = (584, 565, 3)
 
     Image.fromarray(result_img).save(prediction_loc + "{idx}_pred_{th}.png".format(idx=result_idx+1, th=threshold_of_prediction))
